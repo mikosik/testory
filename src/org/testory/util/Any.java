@@ -1,23 +1,29 @@
 package org.testory.util;
 
 import static java.util.Collections.nCopies;
+import static org.testory.common.CharSequences.join;
 import static org.testory.common.Checks.checkArgument;
 import static org.testory.common.Checks.checkNotNull;
 import static org.testory.common.Classes.tryWrap;
 import static org.testory.common.Collections.flip;
 import static org.testory.common.Collections.last;
 import static org.testory.common.Matchers.arrayOf;
+import static org.testory.common.Matchers.equalDeep;
+import static org.testory.common.Matchers.listOf;
+import static org.testory.common.Matchers.same;
 import static org.testory.common.Objects.areEqualDeep;
 import static org.testory.common.Objects.print;
-import static org.testory.util.Matchers.invocationMatcher;
+import static org.testory.proxy.Invocations.invocationOf;
 import static org.testory.util.Uniques.unique;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 import org.testory.common.Matcher;
 import org.testory.common.Matchers;
+import org.testory.common.Matchers.ProxyMatcher;
 import org.testory.common.Nullable;
 import org.testory.proxy.Invocation;
 
@@ -62,6 +68,16 @@ public class Any {
         ? packVarargs(invocation.method.getParameterTypes().length, matchers)
         : matchers;
     return invocationMatcher(invocation.method, invocation.instance, argumentsMatchers);
+  }
+
+  private static Matcher invocationMatcher(final Method method, final Object instance,
+      final List<Matcher> arguments) {
+    Matcher target = invocationOf(equalDeep(method), same(instance), listOf(arguments));
+    return new ProxyMatcher(target) {
+      public String toString() {
+        return instance + "." + method.getName() + "(" + join(", ", arguments) + ")";
+      }
+    };
   }
 
   private static List<Boolean> solve(List<Any> anys, List<Object> arguments) {
@@ -123,11 +139,7 @@ public class Any {
   }
 
   private static Matcher asMatcher(final Object argument) {
-    return new Matcher() {
-      public boolean matches(Object item) {
-        return areEqualDeep(argument, item);
-      }
-
+    return new ProxyMatcher(equalDeep(argument)) {
       public String toString() {
         return print(argument);
       }
@@ -135,11 +147,7 @@ public class Any {
   }
 
   private static Matcher asMatcher(final Any any) {
-    return new Matcher() {
-      public boolean matches(Object item) {
-        return any.matcher.matches(item);
-      }
-
+    return new ProxyMatcher(any.matcher) {
       public String toString() {
         return any.matcher == Matchers.anything
             ? "any(" + any.type.getName() + ")"
